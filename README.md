@@ -23,7 +23,7 @@ CSS will be used in some cases to generalize the style and appearance of the app
 
 # Project Plan and Timeline
 
-This project will consist of 4 main sprints:
+This project will consist of 4 main sprints (Dates specified are end-dates of sprints):
 
 - Sprint 1: Establish project goals, initial setup, and client communication. (Feb 5, 2026)
 - Sprint 2: Familiarize and onboard the team with the skills needed to produce the application. Also create the first prototypes of the application. (March 1, 2026)
