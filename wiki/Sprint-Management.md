@@ -1,12 +1,19 @@
 # Sprint Management
 
-This document outlines the sprint structure, goals, and tracking for the RSOV (Ride Share at OU Verified) capstone project.
+This document outlines the sprint structure, goals, and tracking for the RSOV (Reduce Single-Occupancy Vehicles) capstone project.
 
 ---
 
 ## Overview
 
 The project is organized into **4 sprints**, each with defined goals and deliverables. The Sprint Master provides direction, and team members are expected to be proactive in identifying and completing work.
+
+### Sprint Review Meetings
+
+A **Sprint Review is held every Monday**. During each review the team will:
+
+- Review old tickets and assess their current status
+- Define new tickets based on emerging requirements and priorities
 
 | Sprint   | Start Date     | End Date       | Focus Area                          |
 |----------|---------------|----------------|--------------------------------------|
