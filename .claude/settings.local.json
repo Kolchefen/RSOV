@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm src/App.css src/assets/react.svg)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(npm run build)",
+      "Bash(npm uninstall tailwindcss autoprefixer)",
+      "Bash(npm install -D tailwindcss@next @tailwindcss/vite tw-animate-css)",
+      "Bash(npm install recharts sonner cmdk vaul input-otp react-resizable-panels embla-carousel-react date-fns react-day-picker react-hook-form @hookform/resolvers zod next-themes)",
+      "Bash(npm install @radix-ui/react-accordion @radix-ui/react-alert-dialog @radix-ui/react-aspect-ratio @radix-ui/react-collapsible @radix-ui/react-context-menu @radix-ui/react-hover-card @radix-ui/react-menubar @radix-ui/react-navigation-menu @radix-ui/react-popover @radix-ui/react-progress @radix-ui/react-radio-group @radix-ui/react-scroll-area @radix-ui/react-slider @radix-ui/react-switch @radix-ui/react-toast @radix-ui/react-toggle @radix-ui/react-toggle-group)",
+      "Bash(cp \"C:/Users/zacha/Downloads/b_blMXeO6Xj7h-1772817247627/components/admin/stats-card.tsx\" \"c:/Users/zacha/Documents/School/SP26/Capstone/admin-panel/src/components/admin/stats-card.tsx\")",
+      "Bash(cp \"C:/Users/zacha/Downloads/b_blMXeO6Xj7h-1772817247627/components/admin/data-table.tsx\" \"c:/Users/zacha/Documents/School/SP26/Capstone/admin-panel/src/components/admin/data-table.tsx\")",
+      "Bash(cp \"C:/Users/zacha/Downloads/b_blMXeO6Xj7h-1772817247627/hooks/use-mobile.ts\" \"c:/Users/zacha/Documents/School/SP26/Capstone/admin-panel/src/hooks/use-mobile.ts\")",
+      "Bash(cp \"C:/Users/zacha/Downloads/b_blMXeO6Xj7h-1772817247627/hooks/use-toast.ts\" \"c:/Users/zacha/Documents/School/SP26/Capstone/admin-panel/src/hooks/use-toast.ts\")",
+      "Bash(sed -i '1s/^\\\\/\\\\/ @ts-nocheck\\\\n//' \"c:/Users/zacha/Documents/School/SP26/Capstone/admin-panel/src/pages/Analytics.tsx\")",
+      "Bash(sed -i '1s/^/\\\\/\\\\/ @ts-nocheck\\\\n/' \"c:/Users/zacha/Documents/School/SP26/Capstone/admin-panel/src/pages/Analytics.tsx\")"
+    ]
+  }
+}
