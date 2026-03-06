@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # RSOV
 This is a capstone project aimed at creating a platform for Univserity of Oklahoma attendants to easily ride share within the community, incentivized by rewards and competition.
 
@@ -117,4 +116,3 @@ export default defineConfig([
   },
 ])
 ```
->>>>>>> master
