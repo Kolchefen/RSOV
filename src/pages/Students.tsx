@@ -1,6 +1,6 @@
 
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { AdminLayout } from "@/components/admin/admin-layout"
 import { StatsCard } from "@/components/admin/stats-card"
 import { Card, CardContent } from "@/components/ui/card"
@@ -58,164 +58,26 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-
-const studentsData = [
-  {
-    id: "STU-001",
-    name: "Sarah Chen",
-    email: "sarah.chen@university.edu",
-    phone: "+1 (555) 123-4567",
-    studentId: "2023001234",
-    major: "Computer Science",
-    year: "Junior",
-    avatar: "SC",
-    status: "active",
-    ridesAsDriver: 156,
-    ridesAsPassenger: 45,
-    totalPoints: 4680,
-    co2Saved: 312.5,
-    rating: 4.9,
-    joinedDate: "2023-09-01",
-    verifiedDriver: true,
-  },
-  {
-    id: "STU-002",
-    name: "Mike Johnson",
-    email: "mike.j@university.edu",
-    phone: "+1 (555) 234-5678",
-    studentId: "2022002345",
-    major: "Mechanical Engineering",
-    year: "Senior",
-    avatar: "MJ",
-    status: "active",
-    ridesAsDriver: 142,
-    ridesAsPassenger: 67,
-    totalPoints: 4260,
-    co2Saved: 284.0,
-    rating: 4.8,
-    joinedDate: "2022-09-01",
-    verifiedDriver: true,
-  },
-  {
-    id: "STU-003",
-    name: "Emily Davis",
-    email: "emily.d@university.edu",
-    phone: "+1 (555) 345-6789",
-    studentId: "2024003456",
-    major: "Biology",
-    year: "Sophomore",
-    avatar: "ED",
-    status: "active",
-    ridesAsDriver: 128,
-    ridesAsPassenger: 89,
-    totalPoints: 3840,
-    co2Saved: 256.0,
-    rating: 4.95,
-    joinedDate: "2024-01-15",
-    verifiedDriver: true,
-  },
-  {
-    id: "STU-004",
-    name: "James Wilson",
-    email: "james.w@university.edu",
-    phone: "+1 (555) 456-7890",
-    studentId: "2023004567",
-    major: "Business Administration",
-    year: "Junior",
-    avatar: "JW",
-    status: "active",
-    ridesAsDriver: 115,
-    ridesAsPassenger: 23,
-    totalPoints: 3450,
-    co2Saved: 230.0,
-    rating: 4.7,
-    joinedDate: "2023-09-01",
-    verifiedDriver: true,
-  },
-  {
-    id: "STU-005",
-    name: "Lisa Park",
-    email: "lisa.p@university.edu",
-    phone: "+1 (555) 567-8901",
-    studentId: "2024005678",
-    major: "Pre-Med",
-    year: "Freshman",
-    avatar: "LP",
-    status: "active",
-    ridesAsDriver: 0,
-    ridesAsPassenger: 134,
-    totalPoints: 670,
-    co2Saved: 89.3,
-    rating: 5.0,
-    joinedDate: "2024-09-01",
-    verifiedDriver: false,
-  },
-  {
-    id: "STU-006",
-    name: "David Kim",
-    email: "david.k@university.edu",
-    phone: "+1 (555) 678-9012",
-    studentId: "2022006789",
-    major: "Economics",
-    year: "Senior",
-    avatar: "DK",
-    status: "suspended",
-    ridesAsDriver: 89,
-    ridesAsPassenger: 45,
-    totalPoints: 2670,
-    co2Saved: 178.0,
-    rating: 4.2,
-    joinedDate: "2022-09-01",
-    verifiedDriver: true,
-  },
-  {
-    id: "STU-007",
-    name: "Anna Martinez",
-    email: "anna.m@university.edu",
-    phone: "+1 (555) 789-0123",
-    studentId: "2023007890",
-    major: "Fine Arts",
-    year: "Junior",
-    avatar: "AM",
-    status: "active",
-    ridesAsDriver: 76,
-    ridesAsPassenger: 112,
-    totalPoints: 2840,
-    co2Saved: 152.0,
-    rating: 4.85,
-    joinedDate: "2023-09-01",
-    verifiedDriver: true,
-  },
-  {
-    id: "STU-008",
-    name: "Chris Thompson",
-    email: "chris.t@university.edu",
-    phone: "+1 (555) 890-1234",
-    studentId: "2024008901",
-    major: "Physics",
-    year: "Sophomore",
-    avatar: "CT",
-    status: "pending",
-    ridesAsDriver: 0,
-    ridesAsPassenger: 5,
-    totalPoints: 25,
-    co2Saved: 3.3,
-    rating: 0,
-    joinedDate: "2025-02-20",
-    verifiedDriver: false,
-  },
-]
-
-type Student = typeof studentsData[0]
+import { getAllStudents } from "@/lib/firestore/services/users"
+import type { StudentViewModel } from "@/lib/firestore/types"
 
 export default function StudentsPage() {
+  const [students, setStudents] = useState<StudentViewModel[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [yearFilter, setYearFilter] = useState("all")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
+  const [selectedStudent, setSelectedStudent] = useState<StudentViewModel | null>(null)
 
-  const filteredStudents = studentsData.filter((student) => {
+  useEffect(() => {
+    getAllStudents()
+      .then(setStudents)
+      .catch((err) => console.error("Failed to fetch students:", err))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const filteredStudents = students.filter((student) => {
     const matchesSearch =
       student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       student.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -306,28 +168,29 @@ export default function StudentsPage() {
       <div className="grid gap-6 md:grid-cols-4 mb-8">
         <StatsCard
           title="Total Students"
-          value="3,428"
-          change="+156"
-          trend="up"
+          value={students.length.toLocaleString()}
           icon={Users}
         />
         <StatsCard
           title="Verified Drivers"
-          value="892"
-          change="+23"
-          trend="up"
+          value={students.filter((s) => s.verifiedDriver).length.toLocaleString()}
           icon={Car}
           iconColor="bg-chart-2/10 text-chart-2"
         />
         <StatsCard
           title="Avg Rating"
-          value="4.72"
+          value={
+            students.filter((s) => s.rating > 0).length > 0
+              ? (students.filter((s) => s.rating > 0).reduce((sum, s) => sum + s.rating, 0) /
+                  students.filter((s) => s.rating > 0).length).toFixed(2)
+              : "0"
+          }
           icon={Star}
           iconColor="bg-accent/10 text-accent"
         />
         <StatsCard
           title="Pending Verification"
-          value="47"
+          value={students.filter((s) => s.status === "pending").length.toLocaleString()}
           icon={CheckCircle}
           iconColor="bg-chart-4/10 text-chart-4"
         />
@@ -380,6 +243,15 @@ export default function StudentsPage() {
       </Card>
 
       {/* Student Cards Grid */}
+      {loading ? (
+        <div className="flex items-center justify-center py-12 text-muted-foreground">
+          Loading students...
+        </div>
+      ) : filteredStudents.length === 0 ? (
+        <div className="flex items-center justify-center py-12 text-muted-foreground">
+          No students found.
+        </div>
+      ) : (
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {filteredStudents.map((student) => (
           <Card key={student.id} className="border-border hover:border-primary/50 transition-colors">
@@ -481,6 +353,7 @@ export default function StudentsPage() {
           </Card>
         ))}
       </div>
+      )}
 
       {/* Student Detail Sheet */}
       <Sheet open={!!selectedStudent} onOpenChange={() => setSelectedStudent(null)}>

@@ -15,14 +15,16 @@ import { userDocToViewModel } from "../types"
 /** Fetch all users and return admin-panel view models. */
 export async function getAllStudents(): Promise<StudentViewModel[]> {
   const snap = await getDocs(usersCol)
-  return snap.docs.map((d) => userDocToViewModel(d.data()))
+  console.log("Firestore returned", snap.size, "docs")
+  snap.docs.forEach((d) => console.log("Doc ID:", d.id, "Data:", d.data()))
+  return snap.docs.map((d) => userDocToViewModel({ ...d.data(), id: d.id }))
 }
 
 /** Fetch a single user by UID. */
 export async function getStudent(uid: string): Promise<StudentViewModel | null> {
   const snap = await getDoc(userDoc(uid))
   if (!snap.exists()) return null
-  return userDocToViewModel(snap.data())
+  return userDocToViewModel({ ...snap.data(), id: snap.id })
 }
 
 /** Fetch users filtered by account status. */
@@ -31,14 +33,14 @@ export async function getStudentsByStatus(
 ): Promise<StudentViewModel[]> {
   const q = query(usersCol, where("account-status", "==", status))
   const snap = await getDocs(q)
-  return snap.docs.map((d) => userDocToViewModel(d.data()))
+  return snap.docs.map((d) => userDocToViewModel({ ...d.data(), id: d.id }))
 }
 
 /** Fetch top N students by total points (leaderboard). */
 export async function getLeaderboard(n = 5): Promise<StudentViewModel[]> {
   const q = query(usersCol, orderBy("total-points", "desc"), limit(n))
   const snap = await getDocs(q)
-  return snap.docs.map((d) => userDocToViewModel(d.data()))
+  return snap.docs.map((d) => userDocToViewModel({ ...d.data(), id: d.id }))
 }
 
 /** Update the account status of a user (admin action). */
