@@ -108,7 +108,11 @@ export function userDocToViewModel(doc: UserDocument): StudentViewModel {
     co2Saved: doc["co2-saved"] ?? 0,
     rating: doc.rating ?? 0,
     joinedDate: doc["joined-date"]?.toDate().toISOString().split("T")[0] ?? "",
-    verifiedDriver: doc["verified-driver"] ?? doc["app-mode"] === "driver",
+    verifiedDriver: doc["verified-driver"] ?? (
+      Array.isArray(doc["app-mode"])
+        ? doc["app-mode"].includes("driver")
+        : doc["app-mode"] === "driver"
+    ),
   }
 }
 
