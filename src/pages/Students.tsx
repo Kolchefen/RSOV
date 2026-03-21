@@ -58,7 +58,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { getAllStudents } from "@/lib/firestore/services/users"
+import { getAllStudents, deleteStudent } from "@/lib/firestore/services/users"
 import type { StudentViewModel } from "@/lib/firestore/types"
 
 export default function StudentsPage() {
@@ -253,6 +253,7 @@ export default function StudentsPage() {
         </div>
       ) : (
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {/* Map each student in the DB with a card */}
         {filteredStudents.map((student) => (
           <Card key={student.id} className="border-border hover:border-primary/50 transition-colors">
             <CardContent className="p-6">
@@ -291,17 +292,21 @@ export default function StudentsPage() {
                       Edit
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    {student.status === "active" ? (
-                      <DropdownMenuItem className="text-destructive">
-                        <Ban className="mr-2 h-4 w-4" />
-                        Suspend
-                      </DropdownMenuItem>
-                    ) : (
-                      <DropdownMenuItem className="text-primary">
-                        <CheckCircle className="mr-2 h-4 w-4" />
-                        Activate
-                      </DropdownMenuItem>
-                    )}
+                    <DropdownMenuItem
+                      className="text-destructive"
+                      onSelect={() => {
+                        setTimeout(() => {
+                          if (confirm(`Delete ${student.name}'s account? This cannot be undone.`)) {
+                            deleteStudent(student.id)
+                              .then(() => setStudents((prev) => prev.filter((s) => s.id !== student.id)))
+                              .catch((err) => console.error("Failed to delete student:", err))
+                          }
+                        })
+                      }}
+                    >
+                      <Ban className="mr-2 h-4 w-4" />
+                      Delete Account
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -410,7 +415,7 @@ export default function StudentsPage() {
                         <Calendar className="h-5 w-5 text-muted-foreground" />
                         <div>
                           <p className="text-xs text-muted-foreground">Joined</p>
-                          <p className="text-sm">{new Date(selectedStudent.joinedDate).toLocaleDateString()}</p>
+                          <p className="text-sm">{selectedStudent.joinedDate ? new Date(selectedStudent.joinedDate).toLocaleDateString() : "N/A"}</p>
                         </div>
                       </div>
                     </div>
