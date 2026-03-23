@@ -1,6 +1,8 @@
 
-
-import { useState } from "react"
+import { useEffect,useState } from "react"
+import { collection, getDocs } from "firebase/firestore"
+import { usersCol } from "@/lib/firestore/collections"
+import { db } from "@/lib/firebase"
 import { AdminLayout } from "@/components/admin/admin-layout"
 import { DataTable } from "@/components/admin/data-table"
 import { StatsCard } from "@/components/admin/stats-card"
@@ -56,6 +58,14 @@ import {
   Cell,
 } from "recharts"
 
+const iconMap: Record<string, any> = {
+  coffee: Coffee,
+  store: ShoppingBag,
+  events: Ticket,
+  parking: Zap,
+  Zap: Zap,
+}
+
 const pointsDistributionData = [
   { name: "Mon", earned: 4200, redeemed: 1800 },
   { name: "Tue", earned: 3800, redeemed: 2200 },
@@ -72,7 +82,7 @@ const redemptionCategories = [
   { name: "Events", value: 22, color: "hsl(45, 80%, 55%)" },
   { name: "Parking", value: 15, color: "hsl(35, 70%, 50%)" },
 ]
-
+/*
 const recentTransactions = [
   {
     id: "TXN-001",
@@ -129,46 +139,7 @@ const recentTransactions = [
     category: "ride",
   },
 ]
-
-const rewards = [
-  {
-    id: "RWD-001",
-    name: "Campus Cafe $5 Gift Card",
-    points: 250,
-    category: "food",
-    stock: 145,
-    redemptions: 234,
-    icon: Coffee,
-  },
-  {
-    id: "RWD-002",
-    name: "UniRide T-Shirt",
-    points: 500,
-    category: "store",
-    stock: 78,
-    redemptions: 156,
-    icon: ShoppingBag,
-  },
-  {
-    id: "RWD-003",
-    name: "Football Game Ticket",
-    points: 1000,
-    category: "events",
-    stock: 50,
-    redemptions: 89,
-    icon: Ticket,
-  },
-  {
-    id: "RWD-004",
-    name: "Free Week Parking Pass",
-    points: 750,
-    category: "parking",
-    stock: 25,
-    redemptions: 67,
-    icon: Zap,
-  },
-]
-
+*/
 const leaderboard = [
   { rank: 1, name: "Sarah Chen", avatar: "SC", points: 4680, rides: 156 },
   { rank: 2, name: "Mike Johnson", avatar: "MJ", points: 4260, rides: 142 },
@@ -177,7 +148,14 @@ const leaderboard = [
   { rank: 5, name: "Anna Martinez", avatar: "AM", points: 2840, rides: 76 },
 ]
 
-type Transaction = typeof recentTransactions[0]
+type Transaction = {
+  id: string
+  student: { name: string; avatar: string }
+  type: string
+  amount: number
+  description: string
+  category: string
+}
 
 const transactionColumns = [
   {
@@ -230,16 +208,6 @@ const transactionColumns = [
       <span className="text-muted-foreground">{String(value)}</span>
     ),
   },
-  {
-    key: "timestamp",
-    label: "Time",
-    render: (value: unknown) => (
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <Clock className="h-4 w-4" />
-        {String(value)}
-      </div>
-    ),
-  },
 ]
 
 export default function RewardsPage() {
@@ -248,6 +216,90 @@ export default function RewardsPage() {
   const [isAddRewardDialogOpen, setIsAddRewardDialogOpen] = useState(false)
   const [isGrantPointsDialogOpen, setIsGrantPointsDialogOpen] = useState(false)
 
+  const [users, setUsers] = useState<any[]>([])
+
+    useEffect(() => {
+      async function fetchUsers() {
+        const snap = await getDocs(usersCol)
+
+        const data = snap.docs.map((doc) => doc.data())
+
+        setUsers(data)
+      }
+
+      fetchUsers()
+    }, [])
+
+  const [rewards, setRewards] = useState<any[]>([])
+
+    useEffect(() => {
+      async function fetchRewards() {
+        const colRef = collection(db, "rewards")
+        console.log("COLLECTION PATH:", colRef.path)
+
+        const snap = await getDocs(colRef)
+
+        console.log("DOCS:", snap.docs.length)
+
+        const data = snap.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }))
+
+        console.log("DATA:", data)
+
+        setRewards(data)
+      }
+
+      fetchRewards()
+    }, [])
+
+  const [transactions, setTransactions] = useState<any[]>([])
+
+  useEffect(() => {
+    async function fetchTransactions() {
+      const colRef = collection(db, "transactions")
+
+      console.log("COLLECTION PATH:", colRef.path)
+
+      const snap = await getDocs(colRef)
+
+      console.log("NUMBER OF DOCS:", snap.docs.length)
+
+      snap.docs.forEach((doc) => {
+        console.log("DOC ID:", doc.id)
+        console.log("DOC DATA:", doc.data())
+      })
+
+      const data = snap.docs.map((doc) => {
+        const d = doc.data()
+
+        return {
+          id: doc.id,
+          student: {
+            name: d.student,
+            avatar: d.student
+              ?.split(" ")
+              .map((w: string) => w[0])
+              .join("")
+              .slice(0, 2)
+              .toUpperCase()
+          },
+          type: d.type,
+          amount: d.amount,
+          description: d.description,
+          category: d.category,
+        }
+      })
+
+      console.log("FINAL DATA:", data)
+
+      setTransactions(data)
+    }
+
+    fetchTransactions()
+  }, [])
+  /* 
   const filteredTransactions = recentTransactions.filter((txn) => {
     const matchesSearch =
       txn.student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -257,6 +309,22 @@ export default function RewardsPage() {
     
     return matchesSearch && matchesType
   })
+    */
+  const leaderboardData = users
+    .sort((a, b) => (b["total-points"] ?? 0) - (a["total-points"] ?? 0))
+    .slice(0, 5)
+    .map((user, index) => ({
+      rank: index + 1,
+      name: user.name,
+      avatar: user.name
+        ?.split(" ")
+        .map((w: string) => w[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase(),
+      points: user["total-points"] ?? 0,
+      rides: (user["rides-as-driver"] ?? 0) + (user["rides-as-passenger"] ?? 0),
+    }))
 
   return (
     <AdminLayout
@@ -480,7 +548,7 @@ export default function RewardsPage() {
               <Badge variant="secondary">Live</Badge>
             </CardHeader>
             <CardContent>
-              <DataTable columns={transactionColumns} data={recentTransactions.slice(0, 5)} />
+              <DataTable columns={transactionColumns} data={transactions.slice(0, 5)} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -514,49 +582,70 @@ export default function RewardsPage() {
                   </Select>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  {filteredTransactions.length} transactions found
+                  {transactions.length} transactions found
                 </p>
               </div>
             </CardContent>
           </Card>
 
-          <DataTable columns={transactionColumns} data={filteredTransactions} />
+          <DataTable columns={transactionColumns} data={transactions} />
         </TabsContent>
 
         <TabsContent value="rewards" className="space-y-6">
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            {rewards.map((reward) => (
-              <Card key={reward.id} className="border-border">
-                <CardContent className="p-6">
+            {rewards.map((reward) => {
+              return (
+                <Card key={reward.id} className="border-border">
+                  <CardContent className="p-6">
+            
+                  {/* Top row */}
                   <div className="flex items-center justify-between mb-4">
-                    <div className="p-3 rounded-lg bg-primary/10">
-                      <reward.icon className="h-6 w-6 text-primary" />
+                    <div className="p-3 rounded-lg bg-primary/10 text-sm font-medium">
+                      {reward.category}
                     </div>
                     <Badge variant="outline" className="bg-secondary">
                       {reward.category}
                     </Badge>
                   </div>
-                  <h3 className="font-semibold text-foreground mb-2">{reward.name}</h3>
+
+                  {/* Name */}
+                  <h3 className="font-semibold text-foreground mb-2">
+                    {reward.name ?? "No Name"}
+                  </h3>
+
+                  {/* Points */}
                   <div className="flex items-center gap-2 mb-4">
-                    <Gift className="h-4 w-4 text-primary" />
-                    <span className="text-lg font-bold text-primary">{reward.points}</span>
+                    <span className="text-lg font-bold text-primary">
+                      {reward.points ?? 0}
+                    </span>
                     <span className="text-muted-foreground">points</span>
                   </div>
+
+                  {/* Stock */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">Stock</span>
-                      <span className="font-medium">{reward.stock} left</span>
+                      <span className="font-medium">
+                        {reward.stock ?? 0} left
+                      </span>
                     </div>
-                    <Progress value={(reward.stock / 150) * 100} className="h-1.5" />
+                    <Progress
+                      value={((reward.stock ?? 0) / 150) * 100}
+                      className="h-1.5"
+                    />
                   </div>
+
+                  {/* Redemptions */}
                   <p className="text-xs text-muted-foreground mt-3">
-                    {reward.redemptions} total redemptions
+                    {reward.redemptions ?? 0} total redemptions
                   </p>
+
                 </CardContent>
               </Card>
-            ))}
-          </div>
-        </TabsContent>
+            )
+          })}
+        </div>
+      </TabsContent>
 
         <TabsContent value="leaderboard" className="space-y-6">
           <Card className="border-border">
@@ -568,7 +657,7 @@ export default function RewardsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {leaderboard.map((user) => (
+                {leaderboardData.map((user) => (
                   <div
                     key={user.rank}
                     className={`flex items-center gap-4 p-4 rounded-lg ${
