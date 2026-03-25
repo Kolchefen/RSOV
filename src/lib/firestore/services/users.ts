@@ -2,6 +2,7 @@
   getDocs,
   getDoc,
   updateDoc,
+  deleteDoc,
   query,
   where,
   orderBy,
@@ -73,6 +74,11 @@ export async function updateStudentAdminFields(
   >
 ): Promise<void> {
   await updateDoc(userDoc(uid), fields as Record<string, unknown>)
+}
+
+/** Delete a student document from Firestore. */
+export async function deleteStudent(uid: string): Promise<void> {
+  await deleteDoc(userDoc(uid))
 }
 
 /** Set the verified-driver flag (admin driver verification). */
