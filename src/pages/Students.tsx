@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { updateStudentAdminFields } from "@/lib/firestore/services/users"
 import {
   Select,
   SelectContent,
@@ -69,6 +70,24 @@ export default function StudentsPage() {
   const [yearFilter, setYearFilter] = useState("all")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [selectedStudent, setSelectedStudent] = useState<StudentViewModel | null>(null)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editForm, setEditForm] = useState<Partial<StudentViewModel>>({});
+  const [isViewSheetOpen, setIsViewSheetOpen] = useState(false);
+  
+  const [formValues, setFormValues] = useState({
+  firstName: "",
+  lastName: "",
+  email: "",
+  studentId: "",
+  major: "",
+  year: "Freshman",
+  phone: ""
+  });
+
+  // Helper to update state as you type
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  setFormValues({ ...formValues, [e.target.id]: e.target.value });
+  };
 
   useEffect(() => {
     getAllStudents()
@@ -76,6 +95,86 @@ export default function StudentsPage() {
       .catch((err) => console.error("Failed to fetch students:", err))
       .finally(() => setLoading(false))
   }, [])
+
+  const handleViewClick = (student: StudentViewModel) => {
+  setSelectedStudent(student);
+  setIsViewSheetOpen(true);
+};
+
+  // Function to open the Edit Dialog with existing data
+  const handleEditClick = (student: StudentViewModel) => {
+    setSelectedStudent(student);
+    setEditForm({
+      studentId: student.studentId,
+      major: student.major,
+      year: student.year,
+      verifiedDriver: student.verifiedDriver,
+      status: student.status
+    });
+    setIsEditDialogOpen(true);
+    setIsViewSheetOpen(false);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedStudent) return;
+
+    try {
+      setLoading(true);
+      await updateStudentAdminFields(selectedStudent.id, {
+        "student-id": editForm.studentId,
+        "major": editForm.major,
+        "year": editForm.year as any,
+        "verified-driver": editForm.verifiedDriver,
+      });
+
+      // Directly update the local state
+      setStudents(prev => prev.map(s => 
+        s.id === selectedStudent.id 
+          ? { ...s, ...editForm } 
+          : s
+      ));
+      
+      setIsEditDialogOpen(false);
+      setSelectedStudent(null);
+      setEditForm({}); // Clear edit form
+    } catch (error) {
+      console.error("Update failed:", error);
+      alert("Failed to update student");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddStudent = async () => {
+    try {
+      setLoading(true);
+      const newUid = formValues.email.replace(".", "_"); 
+
+      await updateStudentAdminFields(newUid, {
+        "email": formValues.email,
+        "student-id": formValues.studentId,
+        "major": formValues.major,
+        "year": formValues.year as any,
+        "verified-driver": false,
+        "total-points": 0,
+      });
+
+      // Refresh list and close
+      const updated = await getAllStudents();
+      setStudents(updated);
+      setIsAddDialogOpen(false);
+      
+      // Reset form
+      setFormValues({
+        firstName: "", lastName: "", email: "", 
+        studentId: "", major: "", year: "Freshman", phone: ""
+      });
+    } catch (err) {
+      console.error("Save failed:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredStudents = students.filter((student) => {
     const matchesSearch =
@@ -97,7 +196,7 @@ export default function StudentsPage() {
       actions={
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button onClick={() => setIsAddDialogOpen(true)}>
               <UserPlus className="mr-2 h-4 w-4" />
               Add Student
             </Button>
@@ -113,52 +212,85 @@ export default function StudentsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="firstName">First Name</Label>
-                  <Input id="firstName" placeholder="John" />
+                  <Input
+                    id="firstName"
+                    placeholder="John"
+                    value={formValues.firstName}
+                    onChange={handleInputChange}
+                  />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="lastName">Last Name</Label>
-                  <Input id="lastName" placeholder="Doe" />
+                  <Input
+                    id="lastName"
+                    placeholder="Doe"
+                    value={formValues.lastName}
+                    onChange={handleInputChange}
+                  />
                 </div>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="john.doe@university.edu" />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="john.doe@university.edu"
+                  value={formValues.email}
+                  onChange={handleInputChange}
+                />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="studentId">Student ID</Label>
-                <Input id="studentId" placeholder="2024001234" />
+                <Input
+                  id="studentId"
+                  placeholder="12345678"
+                  value={formValues.studentId}
+                  onChange={handleInputChange}
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="major">Major</Label>
-                  <Input id="major" placeholder="Computer Science" />
+                  <Input
+                    id="major"
+                    placeholder="Computer Science"
+                    value={formValues.major}
+                    onChange={handleInputChange}
+                  />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="year">Year</Label>
-                  <Select>
+                  <Select value={formValues.year} onValueChange={(value) => setFormValues({...formValues, year: value})}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select year" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="freshman">Freshman</SelectItem>
-                      <SelectItem value="sophomore">Sophomore</SelectItem>
-                      <SelectItem value="junior">Junior</SelectItem>
-                      <SelectItem value="senior">Senior</SelectItem>
-                      <SelectItem value="graduate">Graduate</SelectItem>
+                      <SelectItem value="Freshman">Freshman</SelectItem>
+                      <SelectItem value="Sophomore">Sophomore</SelectItem>
+                      <SelectItem value="Junior">Junior</SelectItem>
+                      <SelectItem value="Senior">Senior</SelectItem>
+                      <SelectItem value="Graduate">Graduate</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="phone">Phone Number</Label>
-                <Input id="phone" placeholder="+1 (555) 000-0000" />
+                <Input
+                  id="phone"
+                  placeholder="+1 (555) 000-0000"
+                  value={formValues.phone}
+                  onChange={handleInputChange}
+                />
               </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={() => setIsAddDialogOpen(false)}>Add Student</Button>
+              <Button onClick={handleAddStudent} disabled={loading}>
+                {loading ? "Saving..." : "Add Student"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -283,11 +415,11 @@ export default function StudentsPage() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setSelectedStudent(student)}>
+                    <DropdownMenuItem onClick={() => handleViewClick(student)}>
                       <Eye className="mr-2 h-4 w-4" />
                       View Profile
                     </DropdownMenuItem>
-                    <DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleEditClick(student)}>
                       <Edit className="mr-2 h-4 w-4" />
                       Edit
                     </DropdownMenuItem>
@@ -360,8 +492,77 @@ export default function StudentsPage() {
       </div>
       )}
 
+      {/* Edit Dialog */}
+      <Dialog
+        open={isEditDialogOpen}
+        onOpenChange={open => {
+          setIsEditDialogOpen(open);
+          if (!open) {
+            setSelectedStudent(null);
+            setEditForm({});
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Edit Student</DialogTitle>
+            <DialogDescription>
+              Update student information
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-studentId">Student ID</Label>
+              <Input 
+                id="edit-studentId" 
+                value={editForm.studentId || ""} 
+                onChange={(e) => setEditForm({...editForm, studentId: e.target.value})}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-major">Major</Label>
+              <Input 
+                id="edit-major" 
+                value={editForm.major || ""} 
+                onChange={(e) => setEditForm({...editForm, major: e.target.value})}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-year">Year</Label>
+              <Select value={editForm.year || ""} onValueChange={(value) => setEditForm({...editForm, year: value})}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select year" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Freshman">Freshman</SelectItem>
+                  <SelectItem value="Sophomore">Sophomore</SelectItem>
+                  <SelectItem value="Junior">Junior</SelectItem>
+                  <SelectItem value="Senior">Senior</SelectItem>
+                  <SelectItem value="Graduate">Graduate</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <input 
+                type="checkbox" 
+                id="edit-verifiedDriver" 
+                checked={editForm.verifiedDriver || false}
+                onChange={(e) => setEditForm({...editForm, verifiedDriver: e.target.checked})}
+              />
+              <Label htmlFor="edit-verifiedDriver">Verified Driver</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Student Detail Sheet */}
-      <Sheet open={!!selectedStudent} onOpenChange={() => setSelectedStudent(null)}>
+      <Sheet open={isViewSheetOpen} onOpenChange={setIsViewSheetOpen}>
         <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
           {selectedStudent && (
             <>
