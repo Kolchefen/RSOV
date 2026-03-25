@@ -11,12 +11,16 @@ import Settings from './pages/Settings'
 
 function App() {
   return (
+    // AuthProvider wraps the app to provide Firebase auth state to all components
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/login" element={<Login />} />
+          {/* Public route - login is the landing page */}
+          <Route path="/" element={<Login />} />
+
+          {/* Protected routes — require authentication, redirect to / if not logged in */}
           <Route element={<ProtectedRoute><Outlet /></ProtectedRoute>}>
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/rides" element={<Rides />} />
             <Route path="/students" element={<Students />} />
             <Route path="/analytics" element={<Analytics />} />

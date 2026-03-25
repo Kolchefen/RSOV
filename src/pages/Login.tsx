@@ -20,7 +20,7 @@ export default function Login() {
   const [error, setError] = useState("")
   const [submitting, setSubmitting] = useState(false)
 
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? "/"
+  const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? "/dashboard"
 
   if (user) return <Navigate to={from} replace />
 

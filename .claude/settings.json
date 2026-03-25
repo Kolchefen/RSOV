@@ -3,5 +3,8 @@
     "allow": [
       "Bash(npm install firebase)"
     ]
+  },
+  "enabledPlugins": {
+    "firebase@claude-plugins-official": true
   }
 }
