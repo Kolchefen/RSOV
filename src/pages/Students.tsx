@@ -1,4 +1,6 @@
-
+// Students.tsx === Admin page for managing student accounts.
+// Displays student stats, filterable card grid, and dialogs for add/edit/view actions.
+// All student data is fetched from and persisted to Firestore.
 
 import { useState, useEffect } from "react"
 import { AdminLayout } from "@/components/admin/admin-layout"
@@ -63,17 +65,19 @@ import { getAllStudents, deleteStudent } from "@/lib/firestore/services/users"
 import type { StudentViewModel } from "@/lib/firestore/types"
 
 export default function StudentsPage() {
-  const [students, setStudents] = useState<StudentViewModel[]>([])
-  const [loading, setLoading] = useState(true)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [yearFilter, setYearFilter] = useState("all")
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [selectedStudent, setSelectedStudent] = useState<StudentViewModel | null>(null)
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [editForm, setEditForm] = useState<Partial<StudentViewModel>>({});
-  const [isViewSheetOpen, setIsViewSheetOpen] = useState(false);
+  // --- State ---
+  const [students, setStudents] = useState<StudentViewModel[]>([])  // Full list of students from Firestore
+  const [loading, setLoading] = useState(true)                      // Controls loading spinner during async ops
+  const [searchQuery, setSearchQuery] = useState("")                 // Text filter for name/email/id/major
+  const [statusFilter, setStatusFilter] = useState("all")           // Dropdown filter: "all" | "active" | "pending" | "suspended"
+  const [yearFilter, setYearFilter] = useState("all")               // Dropdown filter: "all" | "Freshman" | "Sophomore" | etc.
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)     // Controls visibility of "Add Student" dialog
+  const [selectedStudent, setSelectedStudent] = useState<StudentViewModel | null>(null)  // Currently selected student for view/edit
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);  // Controls visibility of "Edit Student" dialog
+  const [editForm, setEditForm] = useState<Partial<StudentViewModel>>({});  // Holds in-progress edits before saving
+  const [isViewSheetOpen, setIsViewSheetOpen] = useState(false);    // Controls visibility of the detail side-sheet
   
+  // Form state for the "Add Student" dialog
   const [formValues, setFormValues] = useState({
   firstName: "",
   lastName: "",
@@ -84,11 +88,13 @@ export default function StudentsPage() {
   phone: ""
   });
 
-  // Helper to update state as you type
+  // Generic input change handler for the Add Student form.
+  // Uses the input's `id` attribute as the key to update the corresponding form field.
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
   setFormValues({ ...formValues, [e.target.id]: e.target.value });
   };
 
+  // Fetch all students from Firestore on initial mount
   useEffect(() => {
     getAllStudents()
       .then(setStudents)
@@ -96,12 +102,14 @@ export default function StudentsPage() {
       .finally(() => setLoading(false))
   }, [])
 
+  // Opens the side-sheet to display a student's full profile
   const handleViewClick = (student: StudentViewModel) => {
   setSelectedStudent(student);
   setIsViewSheetOpen(true);
 };
 
-  // Function to open the Edit Dialog with existing data
+  // Opens the Edit Dialog pre-populated with the selected student's editable fields.
+  // Also closes the view sheet if it was open.
   const handleEditClick = (student: StudentViewModel) => {
     setSelectedStudent(student);
     setEditForm({
@@ -115,6 +123,8 @@ export default function StudentsPage() {
     setIsViewSheetOpen(false);
   };
 
+  // Persists edit form changes to Firestore, then updates local state to avoid a full refetch.
+  // Maps camelCase form fields back to Firestore's kebab-case field names.
   const handleSaveEdit = async () => {
     if (!selectedStudent) return;
 
@@ -127,8 +137,8 @@ export default function StudentsPage() {
         "verified-driver": editForm.verifiedDriver,
       });
 
-      // Directly update the local state
-      setStudents(prev => prev.map(s => 
+      // Optimistically update the local state so the UI reflects changes immediately
+      setStudents(prev => prev.map(s =>
         s.id === selectedStudent.id 
           ? { ...s, ...editForm } 
           : s
@@ -145,10 +155,12 @@ export default function StudentsPage() {
     }
   };
 
+  // Creates a new student document in Firestore from the Add Student form.
+  // Uses a sanitized email as the document ID, then refetches the full list.
   const handleAddStudent = async () => {
     try {
       setLoading(true);
-      const newUid = formValues.email.replace(".", "_"); 
+      const newUid = formValues.email.replace(".", "_");
 
       await updateStudentAdminFields(newUid, {
         "email": formValues.email,
@@ -176,6 +188,8 @@ export default function StudentsPage() {
     }
   };
 
+  // Derive the visible student list by applying search text + dropdown filters.
+  // Runs on every render (search/filter state changes trigger re-render).
   const filteredStudents = students.filter((student) => {
     const matchesSearch =
       student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -189,11 +203,15 @@ export default function StudentsPage() {
     return matchesSearch && matchesStatus && matchesYear
   })
 
+  // --- Render ---
+  // Layout: AdminLayout wraps the page with a consistent header.
+  // The "actions" prop places the Add Student button/dialog in the page header.
   return (
     <AdminLayout
       title="Student Profiles"
       description="Manage student accounts and driver verification"
       actions={
+        /* Add Student Dialog - triggered from the header action button */
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={() => setIsAddDialogOpen(true)}>
@@ -374,7 +392,7 @@ export default function StudentsPage() {
         </CardContent>
       </Card>
 
-      {/* Student Cards Grid */}
+      {/* Student Cards Grid - shows loading state, empty state, or the filtered card grid */}
       {loading ? (
         <div className="flex items-center justify-center py-12 text-muted-foreground">
           Loading students...
@@ -385,7 +403,7 @@ export default function StudentsPage() {
         </div>
       ) : (
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {/* Map each student in the DB with a card */}
+        {/* Render a card for each student that passes the current filters */}
         {filteredStudents.map((student) => (
           <Card key={student.id} className="border-border hover:border-primary/50 transition-colors">
             <CardContent className="p-6">
@@ -408,6 +426,7 @@ export default function StudentsPage() {
                     <p className="text-sm text-muted-foreground">{student.major}</p>
                   </div>
                 </div>
+                {/* Three-dot context menu: View, Edit, Delete */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -424,6 +443,8 @@ export default function StudentsPage() {
                       Edit
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
+                    {/* Delete action - uses setTimeout to let the dropdown close before
+                        showing the native confirm dialog (avoids focus/z-index issues) */}
                     <DropdownMenuItem
                       className="text-destructive"
                       onSelect={() => {
@@ -443,6 +464,7 @@ export default function StudentsPage() {
                 </DropdownMenu>
               </div>
 
+              {/* Contact info: email and year/ID */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-sm">
                   <Mail className="h-4 w-4 text-muted-foreground" />
@@ -454,6 +476,7 @@ export default function StudentsPage() {
                 </div>
               </div>
 
+              {/* Quick stats row: total rides, points, and rating */}
               <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-border">
                 <div className="text-center">
                   <p className="text-lg font-semibold text-foreground">{student.ridesAsDriver + student.ridesAsPassenger}</p>
@@ -472,6 +495,7 @@ export default function StudentsPage() {
                 </div>
               </div>
 
+              {/* Account status badge - color-coded: green=active, yellow=pending, red=suspended */}
               <div className="mt-4 pt-4 border-t border-border">
                 <Badge
                   variant="outline"
@@ -492,7 +516,8 @@ export default function StudentsPage() {
       </div>
       )}
 
-      {/* Edit Dialog */}
+      {/* Edit Dialog - allows admins to modify student ID, major, year, and driver verification.
+          Resets selected student and form state when closed. */}
       <Dialog
         open={isEditDialogOpen}
         onOpenChange={open => {
@@ -561,7 +586,8 @@ export default function StudentsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Student Detail Sheet */}
+      {/* Student Detail Sheet - slides in from the right with full profile.
+          Contains three tabs: Info (contact details), Stats (ride/point metrics), Activity (recent actions). */}
       <Sheet open={isViewSheetOpen} onOpenChange={setIsViewSheetOpen}>
         <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
           {selectedStudent && (
@@ -596,6 +622,7 @@ export default function StudentsPage() {
                     <TabsTrigger value="stats" className="flex-1">Stats</TabsTrigger>
                     <TabsTrigger value="activity" className="flex-1">Activity</TabsTrigger>
                   </TabsList>
+                  {/* Info Tab - email, phone, and join date */}
                   <TabsContent value="info" className="space-y-4 mt-4">
                     <div className="space-y-3">
                       <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary">
@@ -621,6 +648,7 @@ export default function StudentsPage() {
                       </div>
                     </div>
                   </TabsContent>
+                  {/* Stats Tab - 2x2 grid showing rides (driver/passenger), points, and CO2 saved */}
                   <TabsContent value="stats" className="space-y-4 mt-4">
                     <div className="grid grid-cols-2 gap-4">
                       <Card>
@@ -653,6 +681,7 @@ export default function StudentsPage() {
                       </Card>
                     </div>
                   </TabsContent>
+                  {/* Activity Tab - hardcoded placeholder data (TODO: replace with real activity from Firestore) */}
                   <TabsContent value="activity" className="mt-4">
                     <div className="space-y-4">
                       {[

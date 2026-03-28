@@ -61,7 +61,7 @@ export interface UserDocument {
   "total-points"?: number
   "co2-saved"?: number                           // kg CO2 saved
   rating?: number                                // Average driver/passenger rating
-  "joined-date"?: Timestamp
+  "date-joined"?: Timestamp
 }
 
 /** Admin panel view model derived from UserDocument — matches the Students.tsx shape. */
@@ -85,29 +85,31 @@ export interface StudentViewModel {
 }
 
 export function userDocToViewModel(doc: UserDocument): StudentViewModel {
-  const initials = doc.name
+  const name = doc.name ?? ""
+  const initials = name
     .split(" ")
+    .filter(Boolean)
     .map((w) => w[0])
     .join("")
     .toUpperCase()
-    .slice(0, 2)
+    .slice(0, 2) || "?"
 
   return {
     id: doc.id,
-    name: doc.name,
+    name,
     email: doc.email ?? "",
     phone: doc["phone-number"] ?? "",
     studentId: doc["student-id"] ?? "",
     major: doc.major ?? "",
     year: doc.year ?? "",
     avatar: initials,
-    status: doc["account-status"],
+    status: doc["account-status"] ?? "pending",
     ridesAsDriver: doc["rides-as-driver"] ?? 0,
     ridesAsPassenger: doc["rides-as-passenger"] ?? 0,
     totalPoints: doc["total-points"] ?? 0,
     co2Saved: doc["co2-saved"] ?? 0,
     rating: doc.rating ?? 0,
-    joinedDate: doc["joined-date"]?.toDate().toISOString().split("T")[0] ?? "",
+    joinedDate: doc["date-joined"]?.toDate().toISOString().split("T")[0] ?? "",
     verifiedDriver: doc["verified-driver"] ?? (
       Array.isArray(doc["app-mode"])
         ? doc["app-mode"].includes("driver")

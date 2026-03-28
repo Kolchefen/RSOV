@@ -38,7 +38,7 @@ describe("userDocToViewModel", () => {
       "total-points": 340,
       "co2-saved": 28,
       rating: 4.7,
-      "joined-date": fakeTimestamp("2025-08-15"),
+      "date-joined": fakeTimestamp("2025-08-15"),
       "verified-driver": true,
     })
 
@@ -138,7 +138,7 @@ describe("userDocToViewModel", () => {
 
   it("formats joined-date as ISO date string (YYYY-MM-DD)", () => {
     const vm = userDocToViewModel(
-      makeUserDoc({ "joined-date": fakeTimestamp("2024-01-15T10:30:00Z") })
+      makeUserDoc({ "date-joined": fakeTimestamp("2024-01-15T10:30:00Z") })
     )
     expect(vm.joinedDate).toBe("2024-01-15")
   })
