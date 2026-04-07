@@ -2,7 +2,8 @@
 // Displays student stats, filterable card grid, and dialogs for add/edit/view actions.
 // All student data is fetched from and persisted to Firestore.
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
+import { useStudents } from "@/hooks/use-students"
 import { AdminLayout } from "@/components/admin/admin-layout"
 import { StatsCard } from "@/components/admin/stats-card"
 import { Card, CardContent } from "@/components/ui/card"
@@ -61,13 +62,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { getAllStudents, deleteStudent } from "@/lib/firestore/services/users"
+import { deleteStudent } from "@/lib/firestore/services/users"
 import type { StudentViewModel } from "@/lib/firestore/types"
 
 export default function StudentsPage() {
   // --- State ---
-  const [students, setStudents] = useState<StudentViewModel[]>([])  // Full list of students from Firestore
-  const [loading, setLoading] = useState(true)                      // Controls loading spinner during async ops
+  const { students, loading } = useStudents() // Real-time students from Firestore
   const [searchQuery, setSearchQuery] = useState("")                 // Text filter for name/email/id/major
   const [statusFilter, setStatusFilter] = useState("all")           // Dropdown filter: "all" | "active" | "pending" | "suspended"
   const [yearFilter, setYearFilter] = useState("all")               // Dropdown filter: "all" | "Freshman" | "Sophomore" | etc.
@@ -94,13 +94,7 @@ export default function StudentsPage() {
   setFormValues({ ...formValues, [e.target.id]: e.target.value });
   };
 
-  // Fetch all students from Firestore on initial mount
-  useEffect(() => {
-    getAllStudents()
-      .then(setStudents)
-      .catch((err) => console.error("Failed to fetch students:", err))
-      .finally(() => setLoading(false))
-  }, [])
+
 
   // Opens the side-sheet to display a student's full profile
   const handleViewClick = (student: StudentViewModel) => {
@@ -123,68 +117,60 @@ export default function StudentsPage() {
     setIsViewSheetOpen(false);
   };
 
-  // Persists edit form changes to Firestore, then updates local state to avoid a full refetch.
-  // Maps camelCase form fields back to Firestore's kebab-case field names.
+  // Persists edit form changes to Firestore, then closes the dialog (real-time updates handled by useStudents)
   const handleSaveEdit = async () => {
     if (!selectedStudent) return;
-
     try {
-      setLoading(true);
       await updateStudentAdminFields(selectedStudent.id, {
         "student-id": editForm.studentId,
         "major": editForm.major,
         "year": editForm.year as any,
         "verified-driver": editForm.verifiedDriver,
       });
-
-      // Optimistically update the local state so the UI reflects changes immediately
-      setStudents(prev => prev.map(s =>
-        s.id === selectedStudent.id 
-          ? { ...s, ...editForm } 
-          : s
-      ));
-      
       setIsEditDialogOpen(false);
       setSelectedStudent(null);
       setEditForm({}); // Clear edit form
     } catch (error) {
       console.error("Update failed:", error);
       alert("Failed to update student");
-    } finally {
-      setLoading(false);
     }
   };
 
-  // Creates a new student document in Firestore from the Add Student form.
-  // Uses a sanitized email as the document ID, then refetches the full list.
+  // Handles adding a new student: creates a new Firestore document with the form data.
   const handleAddStudent = async () => {
     try {
-      setLoading(true);
+      // Create a document ID based on the email
       const newUid = formValues.email.replace(".", "_");
+      
+      // Combine names for the 'name' field
+      const fullName = `${formValues.firstName} ${formValues.lastName}`.trim();
 
+      // Map form to the exact keys in UserDocument
       await updateStudentAdminFields(newUid, {
+        "name": fullName,
         "email": formValues.email,
         "student-id": formValues.studentId,
         "major": formValues.major,
         "year": formValues.year as any,
+        "phone-number": formValues.phone,
+        "account-status": "active",
         "verified-driver": false,
         "total-points": 0,
-      });
+        "rides-as-driver": 0,
+        "rides-as-passenger": 0,
+        "co2-saved": 0,
+        "rating": 0
+      } as any);
 
-      // Refresh list and close
-      const updated = await getAllStudents();
-      setStudents(updated);
       setIsAddDialogOpen(false);
       
-      // Reset form
+      // Reset form state
       setFormValues({
         firstName: "", lastName: "", email: "", 
         studentId: "", major: "", year: "Freshman", phone: ""
       });
     } catch (err) {
       console.error("Save failed:", err);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -451,7 +437,6 @@ export default function StudentsPage() {
                         setTimeout(() => {
                           if (confirm(`Delete ${student.name}'s account? This cannot be undone.`)) {
                             deleteStudent(student.id)
-                              .then(() => setStudents((prev) => prev.filter((s) => s.id !== student.id)))
                               .catch((err) => console.error("Failed to delete student:", err))
                           }
                         })
