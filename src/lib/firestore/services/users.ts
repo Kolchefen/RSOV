@@ -10,6 +10,32 @@
   serverTimestamp,
 } from "firebase/firestore"
 import { usersCol, userDoc } from "../collections"
+import { setDoc } from "firebase/firestore"
+/** Create or update admin-only profile fields for a student. Creates the document if it doesn't exist. */
+export async function createOrUpdateStudentAdminFields(
+  uid: string,
+  fields: Partial<
+    Pick<
+      UserDocument,
+      | "email"
+      | "student-id"
+      | "major"
+      | "year"
+      | "verified-driver"
+      | "rides-as-driver"
+      | "rides-as-passenger"
+      | "total-points"
+      | "co2-saved"
+      | "rating"
+      | "date-joined"
+      | "account-status"
+      | "name"
+      | "phone-number"
+    >
+  >
+): Promise<void> {
+  await setDoc(userDoc(uid), fields as Record<string, unknown>, { merge: true })
+}
 import type { AccountStatus, AcademicYear, StudentViewModel, UserDocument } from "../types"
 import { userDocToViewModel } from "../types"
 

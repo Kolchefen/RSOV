@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { updateStudentAdminFields } from "@/lib/firestore/services/users"
+import { updateStudentAdminFields, createOrUpdateStudentAdminFields } from "@/lib/firestore/services/users"
 import {
   Select,
   SelectContent,
@@ -140,13 +140,13 @@ export default function StudentsPage() {
   const handleAddStudent = async () => {
     try {
       // Create a document ID based on the email
-      const newUid = formValues.email.replace(".", "_");
-      
+      const newUid = formValues.email.replace(/\./g, "_");
+
       // Combine names for the 'name' field
       const fullName = `${formValues.firstName} ${formValues.lastName}`.trim();
 
       // Map form to the exact keys in UserDocument
-      await updateStudentAdminFields(newUid, {
+      await createOrUpdateStudentAdminFields(newUid, {
         "name": fullName,
         "email": formValues.email,
         "student-id": formValues.studentId,
@@ -163,10 +163,10 @@ export default function StudentsPage() {
       } as any);
 
       setIsAddDialogOpen(false);
-      
+
       // Reset form state
       setFormValues({
-        firstName: "", lastName: "", email: "", 
+        firstName: "", lastName: "", email: "",
         studentId: "", major: "", year: "Freshman", phone: ""
       });
     } catch (err) {
