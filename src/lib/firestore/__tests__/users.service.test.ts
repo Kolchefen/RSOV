@@ -275,7 +275,7 @@ describe("initAdminFields", () => {
       "student-id": "2024001",
       major: "CS",
       year: "Junior",
-      "joined-date": "SERVER_TIMESTAMP",
+      "date-joined": "SERVER_TIMESTAMP",
     })
   })
 
@@ -285,7 +285,7 @@ describe("initAdminFields", () => {
         name: "A",
         email: "existing@uni.edu",
         major: "Biology",
-        "joined-date": "already-set",
+        "date-joined": "already-set",
       })
     )
     mockUpdateDoc.mockResolvedValue(undefined)
@@ -312,7 +312,7 @@ describe("initAdminFields", () => {
         "student-id": "123",
         major: "CS",
         year: "Junior",
-        "joined-date": "exists",
+        "date-joined": "exists",
       })
     )
 

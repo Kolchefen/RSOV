@@ -2,6 +2,7 @@
   getDocs,
   getDoc,
   updateDoc,
+  deleteDoc,
   query,
   where,
   orderBy,
@@ -9,15 +10,52 @@
   serverTimestamp,
 } from "firebase/firestore"
 import { usersCol, userDoc } from "../collections"
+import { setDoc } from "firebase/firestore"
+/** Create or update admin-only profile fields for a student. Creates the document if it doesn't exist. */
+export async function createOrUpdateStudentAdminFields(
+  uid: string,
+  fields: Partial<
+    Pick<
+      UserDocument,
+      | "email"
+      | "student-id"
+      | "major"
+      | "year"
+      | "verified-driver"
+      | "rides-as-driver"
+      | "rides-as-passenger"
+      | "total-points"
+      | "co2-saved"
+      | "rating"
+      | "date-joined"
+      | "account-status"
+      | "name"
+      | "phone-number"
+    >
+  >
+): Promise<void> {
+  await setDoc(userDoc(uid), fields as Record<string, unknown>, { merge: true })
+}
 import type { AccountStatus, AcademicYear, StudentViewModel, UserDocument } from "../types"
 import { userDocToViewModel } from "../types"
 
-/** Fetch all users and return admin-panel view models. */
+/** Fetch all users and return admin-panel view models.
+ *  Skips documents that fail to map (e.g. test docs with missing fields). */
 export async function getAllStudents(): Promise<StudentViewModel[]> {
   const snap = await getDocs(usersCol)
   console.log("Firestore returned", snap.size, "docs")
   snap.docs.forEach((d) => console.log("Doc ID:", d.id, "Data:", d.data()))
-  return snap.docs.map((d) => userDocToViewModel({ ...d.data(), id: d.id }))
+
+  const results: StudentViewModel[] = []
+  for (const d of snap.docs) {
+    try {
+      results.push(userDocToViewModel({ ...d.data(), id: d.id }))
+    } catch (err) {
+      console.warn("Skipping doc", d.id, "— mapping failed:", err)
+    }
+  }
+  console.log("Mapped students:", results.map(s => ({ id: s.id, name: s.name, major: s.major, year: s.year })))
+  return results
 }
 
 /** Fetch a single user by UID. */
@@ -68,11 +106,16 @@ export async function updateStudentAdminFields(
       | "total-points"
       | "co2-saved"
       | "rating"
-      | "joined-date"
+      | "date-joined"
     >
   >
 ): Promise<void> {
   await updateDoc(userDoc(uid), fields as Record<string, unknown>)
+}
+
+/** Delete a student document from Firestore. */
+export async function deleteStudent(uid: string): Promise<void> {
+  await deleteDoc(userDoc(uid))
 }
 
 /** Set the verified-driver flag (admin driver verification). */
@@ -120,7 +163,7 @@ export async function initAdminFields(
   if (fields.studentId && !data["student-id"]) updates["student-id"] = fields.studentId
   if (fields.major && !data.major) updates.major = fields.major
   if (fields.year && !data.year) updates.year = fields.year
-  if (!data["joined-date"]) updates["joined-date"] = serverTimestamp() as ReturnType<typeof serverTimestamp> as unknown as import("firebase/firestore").Timestamp
+  if (!data["date-joined"]) updates["date-joined"] = serverTimestamp() as ReturnType<typeof serverTimestamp> as unknown as import("firebase/firestore").Timestamp
 
   if (Object.keys(updates).length > 0) {
     await updateDoc(userDoc(uid), updates as Record<string, unknown>)

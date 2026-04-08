@@ -13,9 +13,10 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useState } from "react"
+import { useAuth } from "@/contexts/AuthContext"
 
 const navigation = [
-  { name: "Overview", href: "/", icon: LayoutDashboard },
+  { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { name: "Rides", href: "/rides", icon: Car },
   { name: "Students", href: "/students", icon: Users },
   { name: "Rewards", href: "/rewards", icon: Gift },
@@ -29,6 +30,7 @@ const secondaryNavigation = [
 export function Sidebar() {
   const { pathname } = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { user, logout } = useAuth()
 
   return (
     <>
@@ -125,13 +127,15 @@ export function Sidebar() {
         <div className="border-t border-sidebar-border p-4">
           <div className="flex items-center gap-3 px-2 py-2 rounded-lg">
             <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center">
-              <span className="text-sm font-medium text-foreground">AD</span>
+              <span className="text-sm font-medium text-foreground">
+                {(user?.email ?? "AD").substring(0, 2).toUpperCase()}
+              </span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-sidebar-foreground truncate">Admin User</p>
-              <p className="text-xs text-muted-foreground truncate">admin@university.edu</p>
+              <p className="text-sm font-medium text-sidebar-foreground truncate">Admin</p>
+              <p className="text-xs text-muted-foreground truncate">{user?.email ?? ""}</p>
             </div>
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={logout}>
               <LogOut className="h-4 w-4" />
             </Button>
           </div>

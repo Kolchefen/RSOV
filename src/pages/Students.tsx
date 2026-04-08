@@ -1,6 +1,9 @@
+// Students.tsx === Admin page for managing student accounts.
+// Displays student stats, filterable card grid, and dialogs for add/edit/view actions.
+// All student data is fetched from and persisted to Firestore.
 
-
-import { useState, useEffect } from "react"
+import { useState } from "react"
+import { useStudents } from "@/hooks/use-students"
 import { AdminLayout } from "@/components/admin/admin-layout"
 import { StatsCard } from "@/components/admin/stats-card"
 import { Card, CardContent } from "@/components/ui/card"
@@ -8,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { updateStudentAdminFields, createOrUpdateStudentAdminFields } from "@/lib/firestore/services/users"
 import {
   Select,
   SelectContent,
@@ -58,25 +62,120 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { getAllStudents } from "@/lib/firestore/services/users"
+import { deleteStudent } from "@/lib/firestore/services/users"
 import type { StudentViewModel } from "@/lib/firestore/types"
 
 export default function StudentsPage() {
-  const [students, setStudents] = useState<StudentViewModel[]>([])
-  const [loading, setLoading] = useState(true)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [yearFilter, setYearFilter] = useState("all")
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [selectedStudent, setSelectedStudent] = useState<StudentViewModel | null>(null)
+  // --- State ---
+  const { students, loading } = useStudents() // Real-time students from Firestore
+  const [searchQuery, setSearchQuery] = useState("")                 // Text filter for name/email/id/major
+  const [statusFilter, setStatusFilter] = useState("all")           // Dropdown filter: "all" | "active" | "pending" | "suspended"
+  const [yearFilter, setYearFilter] = useState("all")               // Dropdown filter: "all" | "Freshman" | "Sophomore" | etc.
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)     // Controls visibility of "Add Student" dialog
+  const [selectedStudent, setSelectedStudent] = useState<StudentViewModel | null>(null)  // Currently selected student for view/edit
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);  // Controls visibility of "Edit Student" dialog
+  const [editForm, setEditForm] = useState<Partial<StudentViewModel>>({});  // Holds in-progress edits before saving
+  const [isViewSheetOpen, setIsViewSheetOpen] = useState(false);    // Controls visibility of the detail side-sheet
+  
+  // Form state for the "Add Student" dialog
+  const [formValues, setFormValues] = useState({
+  firstName: "",
+  lastName: "",
+  email: "",
+  studentId: "",
+  major: "",
+  year: "Freshman",
+  phone: ""
+  });
 
-  useEffect(() => {
-    getAllStudents()
-      .then(setStudents)
-      .catch((err) => console.error("Failed to fetch students:", err))
-      .finally(() => setLoading(false))
-  }, [])
+  // Generic input change handler for the Add Student form.
+  // Uses the input's `id` attribute as the key to update the corresponding form field.
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  setFormValues({ ...formValues, [e.target.id]: e.target.value });
+  };
 
+
+
+  // Opens the side-sheet to display a student's full profile
+  const handleViewClick = (student: StudentViewModel) => {
+  setSelectedStudent(student);
+  setIsViewSheetOpen(true);
+};
+
+  // Opens the Edit Dialog pre-populated with the selected student's editable fields.
+  // Also closes the view sheet if it was open.
+  const handleEditClick = (student: StudentViewModel) => {
+    setSelectedStudent(student);
+    setEditForm({
+      studentId: student.studentId,
+      major: student.major,
+      year: student.year,
+      verifiedDriver: student.verifiedDriver,
+      status: student.status
+    });
+    setIsEditDialogOpen(true);
+    setIsViewSheetOpen(false);
+  };
+
+  // Persists edit form changes to Firestore, then closes the dialog (real-time updates handled by useStudents)
+  const handleSaveEdit = async () => {
+    if (!selectedStudent) return;
+    try {
+      await updateStudentAdminFields(selectedStudent.id, {
+        "student-id": editForm.studentId,
+        "major": editForm.major,
+        "year": editForm.year as any,
+        "verified-driver": editForm.verifiedDriver,
+      });
+      setIsEditDialogOpen(false);
+      setSelectedStudent(null);
+      setEditForm({}); // Clear edit form
+    } catch (error) {
+      console.error("Update failed:", error);
+      alert("Failed to update student");
+    }
+  };
+
+  // Handles adding a new student: creates a new Firestore document with the form data.
+  const handleAddStudent = async () => {
+    try {
+      // Create a document ID based on the email
+      const newUid = formValues.email.replace(/\./g, "_");
+
+      // Combine names for the 'name' field
+      const fullName = `${formValues.firstName} ${formValues.lastName}`.trim();
+
+      // Map form to the exact keys in UserDocument
+      await createOrUpdateStudentAdminFields(newUid, {
+        "name": fullName,
+        "email": formValues.email,
+        "student-id": formValues.studentId,
+        "major": formValues.major,
+        "year": formValues.year as any,
+        "phone-number": formValues.phone,
+        "account-status": "active",
+        "verified-driver": false,
+        "total-points": 0,
+        "rides-as-driver": 0,
+        "rides-as-passenger": 0,
+        "co2-saved": 0,
+        "rating": 0
+      } as any);
+
+      setIsAddDialogOpen(false);
+
+      // Reset form state
+      setFormValues({
+        firstName: "", lastName: "", email: "",
+        studentId: "", major: "", year: "Freshman", phone: ""
+      });
+    } catch (err) {
+      console.error("Save failed:", err);
+    }
+  };
+
+  // Derive the visible student list by applying search text + dropdown filters.
+  // Runs on every render (search/filter state changes trigger re-render).
   const filteredStudents = students.filter((student) => {
     const matchesSearch =
       student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -90,14 +189,18 @@ export default function StudentsPage() {
     return matchesSearch && matchesStatus && matchesYear
   })
 
+  // --- Render ---
+  // Layout: AdminLayout wraps the page with a consistent header.
+  // The "actions" prop places the Add Student button/dialog in the page header.
   return (
     <AdminLayout
       title="Student Profiles"
       description="Manage student accounts and driver verification"
       actions={
+        /* Add Student Dialog - triggered from the header action button */
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button onClick={() => setIsAddDialogOpen(true)}>
               <UserPlus className="mr-2 h-4 w-4" />
               Add Student
             </Button>
@@ -113,52 +216,85 @@ export default function StudentsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="firstName">First Name</Label>
-                  <Input id="firstName" placeholder="John" />
+                  <Input
+                    id="firstName"
+                    placeholder="John"
+                    value={formValues.firstName}
+                    onChange={handleInputChange}
+                  />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="lastName">Last Name</Label>
-                  <Input id="lastName" placeholder="Doe" />
+                  <Input
+                    id="lastName"
+                    placeholder="Doe"
+                    value={formValues.lastName}
+                    onChange={handleInputChange}
+                  />
                 </div>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="john.doe@university.edu" />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="john.doe@university.edu"
+                  value={formValues.email}
+                  onChange={handleInputChange}
+                />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="studentId">Student ID</Label>
-                <Input id="studentId" placeholder="2024001234" />
+                <Input
+                  id="studentId"
+                  placeholder="12345678"
+                  value={formValues.studentId}
+                  onChange={handleInputChange}
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="major">Major</Label>
-                  <Input id="major" placeholder="Computer Science" />
+                  <Input
+                    id="major"
+                    placeholder="Computer Science"
+                    value={formValues.major}
+                    onChange={handleInputChange}
+                  />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="year">Year</Label>
-                  <Select>
+                  <Select value={formValues.year} onValueChange={(value) => setFormValues({...formValues, year: value})}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select year" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="freshman">Freshman</SelectItem>
-                      <SelectItem value="sophomore">Sophomore</SelectItem>
-                      <SelectItem value="junior">Junior</SelectItem>
-                      <SelectItem value="senior">Senior</SelectItem>
-                      <SelectItem value="graduate">Graduate</SelectItem>
+                      <SelectItem value="Freshman">Freshman</SelectItem>
+                      <SelectItem value="Sophomore">Sophomore</SelectItem>
+                      <SelectItem value="Junior">Junior</SelectItem>
+                      <SelectItem value="Senior">Senior</SelectItem>
+                      <SelectItem value="Graduate">Graduate</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="phone">Phone Number</Label>
-                <Input id="phone" placeholder="+1 (555) 000-0000" />
+                <Input
+                  id="phone"
+                  placeholder="+1 (555) 000-0000"
+                  value={formValues.phone}
+                  onChange={handleInputChange}
+                />
               </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={() => setIsAddDialogOpen(false)}>Add Student</Button>
+              <Button onClick={handleAddStudent} disabled={loading}>
+                {loading ? "Saving..." : "Add Student"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -242,7 +378,7 @@ export default function StudentsPage() {
         </CardContent>
       </Card>
 
-      {/* Student Cards Grid */}
+      {/* Student Cards Grid - shows loading state, empty state, or the filtered card grid */}
       {loading ? (
         <div className="flex items-center justify-center py-12 text-muted-foreground">
           Loading students...
@@ -253,6 +389,7 @@ export default function StudentsPage() {
         </div>
       ) : (
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {/* Render a card for each student that passes the current filters */}
         {filteredStudents.map((student) => (
           <Card key={student.id} className="border-border hover:border-primary/50 transition-colors">
             <CardContent className="p-6">
@@ -275,6 +412,7 @@ export default function StudentsPage() {
                     <p className="text-sm text-muted-foreground">{student.major}</p>
                   </div>
                 </div>
+                {/* Three-dot context menu: View, Edit, Delete */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -282,30 +420,36 @@ export default function StudentsPage() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setSelectedStudent(student)}>
+                    <DropdownMenuItem onClick={() => handleViewClick(student)}>
                       <Eye className="mr-2 h-4 w-4" />
                       View Profile
                     </DropdownMenuItem>
-                    <DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleEditClick(student)}>
                       <Edit className="mr-2 h-4 w-4" />
                       Edit
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    {student.status === "active" ? (
-                      <DropdownMenuItem className="text-destructive">
-                        <Ban className="mr-2 h-4 w-4" />
-                        Suspend
-                      </DropdownMenuItem>
-                    ) : (
-                      <DropdownMenuItem className="text-primary">
-                        <CheckCircle className="mr-2 h-4 w-4" />
-                        Activate
-                      </DropdownMenuItem>
-                    )}
+                    {/* Delete action - uses setTimeout to let the dropdown close before
+                        showing the native confirm dialog (avoids focus/z-index issues) */}
+                    <DropdownMenuItem
+                      className="text-destructive"
+                      onSelect={() => {
+                        setTimeout(() => {
+                          if (confirm(`Delete ${student.name}'s account? This cannot be undone.`)) {
+                            deleteStudent(student.id)
+                              .catch((err) => console.error("Failed to delete student:", err))
+                          }
+                        })
+                      }}
+                    >
+                      <Ban className="mr-2 h-4 w-4" />
+                      Delete Account
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
 
+              {/* Contact info: email and year/ID */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-sm">
                   <Mail className="h-4 w-4 text-muted-foreground" />
@@ -317,6 +461,7 @@ export default function StudentsPage() {
                 </div>
               </div>
 
+              {/* Quick stats row: total rides, points, and rating */}
               <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-border">
                 <div className="text-center">
                   <p className="text-lg font-semibold text-foreground">{student.ridesAsDriver + student.ridesAsPassenger}</p>
@@ -335,6 +480,7 @@ export default function StudentsPage() {
                 </div>
               </div>
 
+              {/* Account status badge - color-coded: green=active, yellow=pending, red=suspended */}
               <div className="mt-4 pt-4 border-t border-border">
                 <Badge
                   variant="outline"
@@ -355,8 +501,79 @@ export default function StudentsPage() {
       </div>
       )}
 
-      {/* Student Detail Sheet */}
-      <Sheet open={!!selectedStudent} onOpenChange={() => setSelectedStudent(null)}>
+      {/* Edit Dialog - allows admins to modify student ID, major, year, and driver verification.
+          Resets selected student and form state when closed. */}
+      <Dialog
+        open={isEditDialogOpen}
+        onOpenChange={open => {
+          setIsEditDialogOpen(open);
+          if (!open) {
+            setSelectedStudent(null);
+            setEditForm({});
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Edit Student</DialogTitle>
+            <DialogDescription>
+              Update student information
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-studentId">Student ID</Label>
+              <Input 
+                id="edit-studentId" 
+                value={editForm.studentId || ""} 
+                onChange={(e) => setEditForm({...editForm, studentId: e.target.value})}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-major">Major</Label>
+              <Input 
+                id="edit-major" 
+                value={editForm.major || ""} 
+                onChange={(e) => setEditForm({...editForm, major: e.target.value})}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-year">Year</Label>
+              <Select value={editForm.year || ""} onValueChange={(value) => setEditForm({...editForm, year: value})}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select year" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Freshman">Freshman</SelectItem>
+                  <SelectItem value="Sophomore">Sophomore</SelectItem>
+                  <SelectItem value="Junior">Junior</SelectItem>
+                  <SelectItem value="Senior">Senior</SelectItem>
+                  <SelectItem value="Graduate">Graduate</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <input 
+                type="checkbox" 
+                id="edit-verifiedDriver" 
+                checked={editForm.verifiedDriver || false}
+                onChange={(e) => setEditForm({...editForm, verifiedDriver: e.target.checked})}
+              />
+              <Label htmlFor="edit-verifiedDriver">Verified Driver</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Student Detail Sheet - slides in from the right with full profile.
+          Contains three tabs: Info (contact details), Stats (ride/point metrics), Activity (recent actions). */}
+      <Sheet open={isViewSheetOpen} onOpenChange={setIsViewSheetOpen}>
         <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
           {selectedStudent && (
             <>
@@ -390,6 +607,7 @@ export default function StudentsPage() {
                     <TabsTrigger value="stats" className="flex-1">Stats</TabsTrigger>
                     <TabsTrigger value="activity" className="flex-1">Activity</TabsTrigger>
                   </TabsList>
+                  {/* Info Tab - email, phone, and join date */}
                   <TabsContent value="info" className="space-y-4 mt-4">
                     <div className="space-y-3">
                       <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary">
@@ -410,11 +628,12 @@ export default function StudentsPage() {
                         <Calendar className="h-5 w-5 text-muted-foreground" />
                         <div>
                           <p className="text-xs text-muted-foreground">Joined</p>
-                          <p className="text-sm">{new Date(selectedStudent.joinedDate).toLocaleDateString()}</p>
+                          <p className="text-sm">{selectedStudent.joinedDate ? new Date(selectedStudent.joinedDate).toLocaleDateString() : "N/A"}</p>
                         </div>
                       </div>
                     </div>
                   </TabsContent>
+                  {/* Stats Tab - 2x2 grid showing rides (driver/passenger), points, and CO2 saved */}
                   <TabsContent value="stats" className="space-y-4 mt-4">
                     <div className="grid grid-cols-2 gap-4">
                       <Card>
@@ -447,6 +666,7 @@ export default function StudentsPage() {
                       </Card>
                     </div>
                   </TabsContent>
+                  {/* Activity Tab - hardcoded placeholder data (TODO: replace with real activity from Firestore) */}
                   <TabsContent value="activity" className="mt-4">
                     <div className="space-y-4">
                       {[
