@@ -256,6 +256,16 @@ export default function RewardsPage() {
     const unsub = onSnapshot(
       q,
       (snap) => {
+        console.log(`[transactions] snapshot: ${snap.docs.length} docs, fromCache=${snap.metadata.fromCache}, hasPendingWrites=${snap.metadata.hasPendingWrites}`)
+        snap.docs.forEach((doc) => {
+          const d = doc.data()
+          console.log(`[transactions] ${doc.id}`, {
+            type: d.type,
+            userId: d["user-id"],
+            amount: d.amount,
+            createdAt: d["created-at"],
+          })
+        })
         setRawTransactions(
           snap.docs.map((doc) => {
             const d = doc.data()
@@ -271,7 +281,7 @@ export default function RewardsPage() {
           })
         )
       },
-      (err) => console.error("Failed to subscribe to transactions:", err)
+      (err) => console.error("[transactions] subscribe error:", err)
     )
     return unsub
   }, [])

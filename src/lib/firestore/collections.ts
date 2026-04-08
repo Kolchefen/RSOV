@@ -24,7 +24,7 @@ export const COLLECTIONS = {
   TRIPS: "trip-details",
   POSTS: "post-details",
   REWARDS: "rewards",
-  TRANSACTIONS: "points-transactions",
+  TRANSACTIONS: "transactions",
   MESSAGES: "messages",
   VERIFICATION_LIMIT: "verification-usage-limit",
 } as const
