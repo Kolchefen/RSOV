@@ -3,6 +3,7 @@ import {
   getDoc,
   addDoc,
   updateDoc,
+  setDoc,
   query,
   where,
   orderBy,
@@ -124,12 +125,28 @@ export async function getUserTransactions(
   return snap.docs.map((d) => d.data())
 }
 
-/** Admin: grant bonus points to a user. Creates a transaction and updates total-points. */
+/** Admin: grant bonus points to a user. Updates total-points first (creating
+ *  the field if missing) and only records the transaction on success, so we
+ *  never end up with an orphan transaction row when the user-doc write fails. */
 export async function grantBonusPoints(
   uid: string,
   amount: number,
   reason: string
 ): Promise<void> {
+  // Verify the target user doc actually exists — fail fast with a clear error.
+  const userSnap = await getDoc(userDoc(uid))
+  if (!userSnap.exists()) {
+    throw new Error(`User ${uid} does not exist in user-data`)
+  }
+
+  // setDoc + merge creates the `total-points` field if it's missing and still
+  // applies the increment correctly when it already exists.
+  await setDoc(
+    userDoc(uid),
+    { "total-points": increment(amount) } as Record<string, unknown>,
+    { merge: true }
+  )
+
   const ref = await addDoc(transactionsCol, {
     id: "",
     "user-id": uid,
@@ -141,7 +158,6 @@ export async function grantBonusPoints(
   } as unknown as PointsTransactionDocument)
 
   await updateDoc(ref, { id: ref.id })
-  await updateDoc(userDoc(uid), { "total-points": increment(amount) })
 }
 
 /** Redeem a reward for a user. Validates stock and deducts points. */

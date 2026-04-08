@@ -1,8 +1,11 @@
 
-import { useEffect,useState } from "react"
-import { collection, getDocs } from "firebase/firestore"
-import { usersCol } from "@/lib/firestore/collections"
-import { db } from "@/lib/firebase"
+import { useEffect, useMemo, useState } from "react"
+import { getDocs, onSnapshot, orderBy, query, limit as fsLimit } from "firebase/firestore"
+import { usersCol, transactionsCol } from "@/lib/firestore/collections"
+import { getAllRewards, createReward, grantBonusPoints } from "@/lib/firestore/services/rewards"
+import { getStudentByPhone } from "@/lib/firestore/services/users"
+import type { RewardDocument, RewardCategory } from "@/lib/firestore/types"
+import { toast } from "sonner"
 import { AdminLayout } from "@/components/admin/admin-layout"
 import { DataTable } from "@/components/admin/data-table"
 import { StatsCard } from "@/components/admin/stats-card"
@@ -43,7 +46,6 @@ import {
   Ticket,
   ArrowUpRight,
   ArrowDownRight,
-  Clock,
 } from "lucide-react"
 import {
   BarChart,
@@ -58,12 +60,18 @@ import {
   Cell,
 } from "recharts"
 
-const iconMap: Record<string, any> = {
-  coffee: Coffee,
+const categoryIconMap: Record<RewardCategory, typeof Coffee> = {
+  food: Coffee,
   store: ShoppingBag,
   events: Ticket,
   parking: Zap,
-  Zap: Zap,
+}
+
+const categoryLabelMap: Record<RewardCategory, string> = {
+  food: "Food & Drinks",
+  store: "Campus Store",
+  events: "Events",
+  parking: "Parking",
 }
 
 const pointsDistributionData = [
@@ -81,71 +89,6 @@ const redemptionCategories = [
   { name: "Campus Store", value: 28, color: "hsl(220, 60%, 50%)" },
   { name: "Events", value: 22, color: "hsl(45, 80%, 55%)" },
   { name: "Parking", value: 15, color: "hsl(35, 70%, 50%)" },
-]
-/*
-const recentTransactions = [
-  {
-    id: "TXN-001",
-    student: { name: "Sarah Chen", avatar: "SC" },
-    type: "earned",
-    amount: 45,
-    description: "Completed ride: North Campus → Downtown",
-    timestamp: "2024-03-15 10:30 AM",
-    category: "ride",
-  },
-  {
-    id: "TXN-002",
-    student: { name: "Mike Johnson", avatar: "MJ" },
-    type: "redeemed",
-    amount: 500,
-    description: "Campus Store: UniRide T-Shirt",
-    timestamp: "2024-03-15 10:15 AM",
-    category: "store",
-  },
-  {
-    id: "TXN-003",
-    student: { name: "Emily Davis", avatar: "ED" },
-    type: "earned",
-    amount: 30,
-    description: "Completed ride as passenger",
-    timestamp: "2024-03-15 09:45 AM",
-    category: "ride",
-  },
-  {
-    id: "TXN-004",
-    student: { name: "James Wilson", avatar: "JW" },
-    type: "bonus",
-    amount: 100,
-    description: "Weekly streak bonus (5 rides)",
-    timestamp: "2024-03-15 09:00 AM",
-    category: "bonus",
-  },
-  {
-    id: "TXN-005",
-    student: { name: "Lisa Park", avatar: "LP" },
-    type: "redeemed",
-    amount: 250,
-    description: "Campus Cafe: $5 Gift Card",
-    timestamp: "2024-03-15 08:30 AM",
-    category: "food",
-  },
-  {
-    id: "TXN-006",
-    student: { name: "David Kim", avatar: "DK" },
-    type: "earned",
-    amount: 60,
-    description: "Completed ride with full car (4 passengers)",
-    timestamp: "2024-03-14 06:00 PM",
-    category: "ride",
-  },
-]
-*/
-const leaderboard = [
-  { rank: 1, name: "Sarah Chen", avatar: "SC", points: 4680, rides: 156 },
-  { rank: 2, name: "Mike Johnson", avatar: "MJ", points: 4260, rides: 142 },
-  { rank: 3, name: "Emily Davis", avatar: "ED", points: 3840, rides: 128 },
-  { rank: 4, name: "James Wilson", avatar: "JW", points: 3450, rides: 115 },
-  { rank: 5, name: "Anna Martinez", avatar: "AM", points: 2840, rides: 76 },
 ]
 
 type Transaction = {
@@ -216,6 +159,67 @@ export default function RewardsPage() {
   const [isAddRewardDialogOpen, setIsAddRewardDialogOpen] = useState(false)
   const [isGrantPointsDialogOpen, setIsGrantPointsDialogOpen] = useState(false)
 
+  // Grant Points form state
+  const [grantPhone, setGrantPhone] = useState("")
+  const [grantAmount, setGrantAmount] = useState("")
+  const [grantReason, setGrantReason] = useState("")
+  const [isGrantingPoints, setIsGrantingPoints] = useState(false)
+
+  async function handleGrantPoints() {
+    const amount = Number(grantAmount)
+    if (!grantPhone || !grantReason || !Number.isFinite(amount) || amount <= 0) {
+      toast.error("Enter a phone number, positive amount, and reason")
+      return
+    }
+    setIsGrantingPoints(true)
+    try {
+      const student = await getStudentByPhone(grantPhone.trim())
+      if (!student) {
+        toast.error(`No student found with phone ${grantPhone}`)
+        return
+      }
+      await grantBonusPoints(student.id, amount, grantReason)
+      toast.success(`Granted ${amount} points to ${student.name || student.id}`)
+      setGrantPhone("")
+      setGrantAmount("")
+      setGrantReason("")
+      setIsGrantPointsDialogOpen(false)
+    } catch (err) {
+      toast.error(`Failed to grant points: ${(err as Error).message}`)
+    } finally {
+      setIsGrantingPoints(false)
+    }
+  }
+
+  // Add Reward form state
+  const [newRewardName, setNewRewardName] = useState("")
+  const [newRewardPoints, setNewRewardPoints] = useState("")
+  const [newRewardStock, setNewRewardStock] = useState("")
+  const [newRewardCategory, setNewRewardCategory] = useState<RewardCategory | "">("")
+  const [isCreatingReward, setIsCreatingReward] = useState(false)
+
+  async function handleCreateReward() {
+    if (!newRewardName || !newRewardPoints || !newRewardStock || !newRewardCategory) return
+    setIsCreatingReward(true)
+    try {
+      await createReward({
+        name: newRewardName,
+        pointsRequired: Number(newRewardPoints),
+        stock: Number(newRewardStock),
+        category: newRewardCategory as RewardCategory,
+      })
+      const updated = await getAllRewards()
+      setRewards(updated)
+      setNewRewardName("")
+      setNewRewardPoints("")
+      setNewRewardStock("")
+      setNewRewardCategory("")
+      setIsAddRewardDialogOpen(false)
+    } finally {
+      setIsCreatingReward(false)
+    }
+  }
+
   const [users, setUsers] = useState<any[]>([])
 
     useEffect(() => {
@@ -230,75 +234,71 @@ export default function RewardsPage() {
       fetchUsers()
     }, [])
 
-  const [rewards, setRewards] = useState<any[]>([])
-
-    useEffect(() => {
-      async function fetchRewards() {
-        const colRef = collection(db, "rewards")
-        console.log("COLLECTION PATH:", colRef.path)
-
-        const snap = await getDocs(colRef)
-
-        console.log("DOCS:", snap.docs.length)
-
-        const data = snap.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }))
-
-        console.log("DATA:", data)
-
-        setRewards(data)
-      }
-
-      fetchRewards()
-    }, [])
-
-  const [transactions, setTransactions] = useState<any[]>([])
+  const [rewards, setRewards] = useState<RewardDocument[]>([])
 
   useEffect(() => {
-    async function fetchTransactions() {
-      const colRef = collection(db, "transactions")
-
-      console.log("COLLECTION PATH:", colRef.path)
-
-      const snap = await getDocs(colRef)
-
-      console.log("NUMBER OF DOCS:", snap.docs.length)
-
-      snap.docs.forEach((doc) => {
-        console.log("DOC ID:", doc.id)
-        console.log("DOC DATA:", doc.data())
-      })
-
-      const data = snap.docs.map((doc) => {
-        const d = doc.data()
-
-        return {
-          id: doc.id,
-          student: {
-            name: d.student,
-            avatar: d.student
-              ?.split(" ")
-              .map((w: string) => w[0])
-              .join("")
-              .slice(0, 2)
-              .toUpperCase()
-          },
-          type: d.type,
-          amount: d.amount,
-          description: d.description,
-          category: d.category,
-        }
-      })
-
-      console.log("FINAL DATA:", data)
-
-      setTransactions(data)
-    }
-
-    fetchTransactions()
+    getAllRewards().then(setRewards)
   }, [])
+
+  type RawTransaction = {
+    id: string
+    userId: string
+    type: string
+    amount: number
+    description: string
+    category: string
+    createdAt: number
+  }
+  const [rawTransactions, setRawTransactions] = useState<RawTransaction[]>([])
+
+  useEffect(() => {
+    const q = query(transactionsCol, orderBy("created-at", "desc"), fsLimit(100))
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setRawTransactions(
+          snap.docs.map((doc) => {
+            const d = doc.data()
+            return {
+              id: doc.id,
+              userId: d["user-id"] ?? "",
+              type: d.type ?? "earned",
+              amount: d.amount ?? 0,
+              description: d.description ?? "",
+              category: d.category ?? "",
+              createdAt: d["created-at"]?.toMillis?.() ?? 0,
+            }
+          })
+        )
+      },
+      (err) => console.error("Failed to subscribe to transactions:", err)
+    )
+    return unsub
+  }, [])
+
+  // Join transactions with users to resolve names + initials for the table.
+  const transactions = useMemo(() => {
+    const usersById = new Map<string, any>(users.map((u) => [u.id, u]))
+    return rawTransactions.map((txn) => {
+      const user = usersById.get(txn.userId)
+      const name = user?.name ?? txn.userId
+      const avatar = (name || "?")
+        .split(" ")
+        .filter(Boolean)
+        .map((w: string) => w[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase()
+      return {
+        id: txn.id,
+        student: { name, avatar },
+        type: txn.type,
+        amount: txn.amount,
+        description: txn.description,
+        category: txn.category,
+      }
+    })
+  }, [rawTransactions, users])
   /* 
   const filteredTransactions = recentTransactions.filter((txn) => {
     const matchesSearch =
@@ -348,23 +348,45 @@ export default function RewardsPage() {
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="studentEmail">Student Email</Label>
-                  <Input id="studentEmail" placeholder="student@university.edu" />
+                  <Label htmlFor="studentPhone">Student Phone Number</Label>
+                  <Input
+                    id="studentPhone"
+                    type="tel"
+                    placeholder="+15551234567"
+                    value={grantPhone}
+                    onChange={(e) => setGrantPhone(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter the full E.164 number (e.g. +1 country code).
+                  </p>
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="points">Points Amount</Label>
-                  <Input id="points" type="number" placeholder="100" />
+                  <Input
+                    id="points"
+                    type="number"
+                    placeholder="100"
+                    value={grantAmount}
+                    onChange={(e) => setGrantAmount(e.target.value)}
+                  />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="reason">Reason</Label>
-                  <Input id="reason" placeholder="e.g., Contest winner, Referral bonus" />
+                  <Input
+                    id="reason"
+                    placeholder="e.g., Contest winner, Referral bonus"
+                    value={grantReason}
+                    onChange={(e) => setGrantReason(e.target.value)}
+                  />
                 </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsGrantPointsDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={() => setIsGrantPointsDialogOpen(false)}>Grant Points</Button>
+                <Button onClick={handleGrantPoints} disabled={isGrantingPoints}>
+                  {isGrantingPoints ? "Granting..." : "Grant Points"}
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -385,21 +407,41 @@ export default function RewardsPage() {
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
                   <Label htmlFor="rewardName">Reward Name</Label>
-                  <Input id="rewardName" placeholder="e.g., Campus Store $10 Gift Card" />
+                  <Input
+                    id="rewardName"
+                    placeholder="e.g., Campus Store $10 Gift Card"
+                    value={newRewardName}
+                    onChange={(e) => setNewRewardName(e.target.value)}
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="rewardPoints">Points Required</Label>
-                    <Input id="rewardPoints" type="number" placeholder="500" />
+                    <Input
+                      id="rewardPoints"
+                      type="number"
+                      placeholder="500"
+                      value={newRewardPoints}
+                      onChange={(e) => setNewRewardPoints(e.target.value)}
+                    />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="stock">Stock</Label>
-                    <Input id="stock" type="number" placeholder="100" />
+                    <Input
+                      id="stock"
+                      type="number"
+                      placeholder="100"
+                      value={newRewardStock}
+                      onChange={(e) => setNewRewardStock(e.target.value)}
+                    />
                   </div>
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="category">Category</Label>
-                  <Select>
+                  <Select
+                    value={newRewardCategory}
+                    onValueChange={(v) => setNewRewardCategory(v as RewardCategory)}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
@@ -416,7 +458,9 @@ export default function RewardsPage() {
                 <Button variant="outline" onClick={() => setIsAddRewardDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={() => setIsAddRewardDialogOpen(false)}>Add Reward</Button>
+                <Button onClick={handleCreateReward} disabled={isCreatingReward}>
+                  {isCreatingReward ? "Adding..." : "Add Reward"}
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -442,7 +486,7 @@ export default function RewardsPage() {
         />
         <StatsCard
           title="Active Rewards"
-          value="24"
+          value={String(rewards.filter((r) => r["is-active"]).length)}
           icon={Trophy}
           iconColor="bg-accent/10 text-accent"
         />
@@ -594,17 +638,21 @@ export default function RewardsPage() {
         <TabsContent value="rewards" className="space-y-6">
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             {rewards.map((reward) => {
+              const Icon = categoryIconMap[reward.category] ?? Gift
+              const label = categoryLabelMap[reward.category] ?? reward.category
+              const stock = reward.stock ?? 0
+              const stockPct = Math.min(100, (stock / Math.max(1, stock + (reward["total-redemptions"] ?? 0))) * 100)
               return (
                 <Card key={reward.id} className="border-border">
                   <CardContent className="p-6">
-            
+
                   {/* Top row */}
                   <div className="flex items-center justify-between mb-4">
-                    <div className="p-3 rounded-lg bg-primary/10 text-sm font-medium">
-                      {reward.category}
+                    <div className="p-3 rounded-lg bg-primary/10">
+                      <Icon className="h-5 w-5 text-primary" />
                     </div>
                     <Badge variant="outline" className="bg-secondary">
-                      {reward.category}
+                      {label}
                     </Badge>
                   </div>
 
@@ -616,7 +664,7 @@ export default function RewardsPage() {
                   {/* Points */}
                   <div className="flex items-center gap-2 mb-4">
                     <span className="text-lg font-bold text-primary">
-                      {reward.points ?? 0}
+                      {reward["points-required"] ?? 0}
                     </span>
                     <span className="text-muted-foreground">points</span>
                   </div>
@@ -626,18 +674,18 @@ export default function RewardsPage() {
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">Stock</span>
                       <span className="font-medium">
-                        {reward.stock ?? 0} left
+                        {stock} left
                       </span>
                     </div>
                     <Progress
-                      value={((reward.stock ?? 0) / 150) * 100}
+                      value={stockPct}
                       className="h-1.5"
                     />
                   </div>
 
                   {/* Redemptions */}
                   <p className="text-xs text-muted-foreground mt-3">
-                    {reward.redemptions ?? 0} total redemptions
+                    {reward["total-redemptions"] ?? 0} total redemptions
                   </p>
 
                 </CardContent>

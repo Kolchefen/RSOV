@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Outlet } from 'react-router-dom'
+import { Toaster } from 'sonner'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import Login from './pages/Login'
@@ -13,6 +14,7 @@ function App() {
   return (
     // AuthProvider wraps the app to provide Firebase auth state to all components
     <AuthProvider>
+      <Toaster position="top-right" richColors closeButton />
       <BrowserRouter>
         <Routes>
           {/* Public route - login is the landing page */}

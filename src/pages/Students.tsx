@@ -107,6 +107,7 @@ export default function StudentsPage() {
   const handleEditClick = (student: StudentViewModel) => {
     setSelectedStudent(student);
     setEditForm({
+      email: student.email,
       studentId: student.studentId,
       major: student.major,
       year: student.year,
@@ -122,6 +123,7 @@ export default function StudentsPage() {
     if (!selectedStudent) return;
     try {
       await updateStudentAdminFields(selectedStudent.id, {
+        "email": editForm.email,
         "student-id": editForm.studentId,
         "major": editForm.major,
         "year": editForm.year as any,
@@ -188,6 +190,12 @@ export default function StudentsPage() {
 
     return matchesSearch && matchesStatus && matchesYear
   })
+
+  // Keep the detail sheet in sync with live snapshot updates
+  // (e.g. when points are granted from the Rewards page).
+  const liveSelectedStudent = selectedStudent
+    ? students.find((s) => s.id === selectedStudent.id) ?? selectedStudent
+    : null
 
   // --- Render ---
   // Layout: AdminLayout wraps the page with a consistent header.
@@ -522,6 +530,16 @@ export default function StudentsPage() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
+              <Label htmlFor="edit-email">Email</Label>
+              <Input
+                id="edit-email"
+                type="email"
+                placeholder="student@university.edu"
+                value={editForm.email || ""}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
               <Label htmlFor="edit-studentId">Student ID</Label>
               <Input 
                 id="edit-studentId" 
@@ -575,29 +593,29 @@ export default function StudentsPage() {
           Contains three tabs: Info (contact details), Stats (ride/point metrics), Activity (recent actions). */}
       <Sheet open={isViewSheetOpen} onOpenChange={setIsViewSheetOpen}>
         <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
-          {selectedStudent && (
+          {liveSelectedStudent && (
             <>
               <SheetHeader>
                 <SheetTitle>Student Profile</SheetTitle>
                 <SheetDescription>
-                  Detailed information about {selectedStudent.name}
+                  Detailed information about {liveSelectedStudent.name}
                 </SheetDescription>
               </SheetHeader>
               <div className="mt-6">
                 <div className="flex items-center gap-4 mb-6">
                   <Avatar className="h-16 w-16">
                     <AvatarFallback className="bg-primary/10 text-primary text-xl">
-                      {selectedStudent.avatar}
+                      {liveSelectedStudent.avatar}
                     </AvatarFallback>
                   </Avatar>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h2 className="text-xl font-semibold">{selectedStudent.name}</h2>
-                      {selectedStudent.verifiedDriver && (
+                      <h2 className="text-xl font-semibold">{liveSelectedStudent.name}</h2>
+                      {liveSelectedStudent.verifiedDriver && (
                         <Badge className="bg-primary text-primary-foreground">Verified Driver</Badge>
                       )}
                     </div>
-                    <p className="text-muted-foreground">{selectedStudent.major} - {selectedStudent.year}</p>
+                    <p className="text-muted-foreground">{liveSelectedStudent.major} - {liveSelectedStudent.year}</p>
                   </div>
                 </div>
 
@@ -614,21 +632,21 @@ export default function StudentsPage() {
                         <Mail className="h-5 w-5 text-muted-foreground" />
                         <div>
                           <p className="text-xs text-muted-foreground">Email</p>
-                          <p className="text-sm">{selectedStudent.email}</p>
+                          <p className="text-sm">{liveSelectedStudent.email}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary">
                         <Phone className="h-5 w-5 text-muted-foreground" />
                         <div>
                           <p className="text-xs text-muted-foreground">Phone</p>
-                          <p className="text-sm">{selectedStudent.phone}</p>
+                          <p className="text-sm">{liveSelectedStudent.phone}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary">
                         <Calendar className="h-5 w-5 text-muted-foreground" />
                         <div>
                           <p className="text-xs text-muted-foreground">Joined</p>
-                          <p className="text-sm">{selectedStudent.joinedDate ? new Date(selectedStudent.joinedDate).toLocaleDateString() : "N/A"}</p>
+                          <p className="text-sm">{liveSelectedStudent.joinedDate ? new Date(liveSelectedStudent.joinedDate).toLocaleDateString() : "N/A"}</p>
                         </div>
                       </div>
                     </div>
@@ -639,28 +657,28 @@ export default function StudentsPage() {
                       <Card>
                         <CardContent className="p-4 text-center">
                           <Car className="h-8 w-8 mx-auto mb-2 text-primary" />
-                          <p className="text-2xl font-bold">{selectedStudent.ridesAsDriver}</p>
+                          <p className="text-2xl font-bold">{liveSelectedStudent.ridesAsDriver}</p>
                           <p className="text-xs text-muted-foreground">Rides as Driver</p>
                         </CardContent>
                       </Card>
                       <Card>
                         <CardContent className="p-4 text-center">
                           <Users className="h-8 w-8 mx-auto mb-2 text-chart-2" />
-                          <p className="text-2xl font-bold">{selectedStudent.ridesAsPassenger}</p>
+                          <p className="text-2xl font-bold">{liveSelectedStudent.ridesAsPassenger}</p>
                           <p className="text-xs text-muted-foreground">Rides as Passenger</p>
                         </CardContent>
                       </Card>
                       <Card>
                         <CardContent className="p-4 text-center">
                           <Gift className="h-8 w-8 mx-auto mb-2 text-accent" />
-                          <p className="text-2xl font-bold text-primary">{selectedStudent.totalPoints.toLocaleString()}</p>
+                          <p className="text-2xl font-bold text-primary">{liveSelectedStudent.totalPoints.toLocaleString()}</p>
                           <p className="text-xs text-muted-foreground">Total Points</p>
                         </CardContent>
                       </Card>
                       <Card>
                         <CardContent className="p-4 text-center">
                           <Leaf className="h-8 w-8 mx-auto mb-2 text-chart-4" />
-                          <p className="text-2xl font-bold">{selectedStudent.co2Saved} kg</p>
+                          <p className="text-2xl font-bold">{liveSelectedStudent.co2Saved} kg</p>
                           <p className="text-xs text-muted-foreground">CO2 Saved</p>
                         </CardContent>
                       </Card>

@@ -65,6 +65,19 @@ export async function getStudent(uid: string): Promise<StudentViewModel | null> 
   return userDocToViewModel({ ...snap.data(), id: snap.id })
 }
 
+/** Fetch a single user by phone number. Returns null if none found.
+ *  Firebase Phone Auth stores numbers in E.164 format (e.g. "+15551234567");
+ *  the caller is responsible for normalizing input to that format. */
+export async function getStudentByPhone(
+  phoneNumber: string
+): Promise<StudentViewModel | null> {
+  const q = query(usersCol, where("phone-number", "==", phoneNumber), limit(1))
+  const snap = await getDocs(q)
+  if (snap.empty) return null
+  const d = snap.docs[0]
+  return userDocToViewModel({ ...d.data(), id: d.id })
+}
+
 /** Fetch users filtered by account status. */
 export async function getStudentsByStatus(
   status: AccountStatus
